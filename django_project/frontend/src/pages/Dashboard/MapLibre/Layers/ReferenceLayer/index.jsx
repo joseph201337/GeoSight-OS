@@ -102,7 +102,7 @@ export function ReferenceLayer({ idx, map, referenceLayer, deckgl, is3DView }) {
     geoField,
   } = useSelector((state) => state.dashboard.data);
   const { indicatorShow } = useSelector((state) => state.map);
-  const { compareMode } = useSelector((state) => state.mapMode);
+  const { compareMode, compareType } = useSelector((state) => state.mapMode);
   const referenceLayerData = useSelector(
     (state) => state.referenceLayerData[referenceLayer?.identifier],
   );
@@ -379,7 +379,12 @@ export function ReferenceLayer({ idx, map, referenceLayer, deckgl, is3DView }) {
     // Also filter by levels that found on indicators
     if (isReady()) {
       // Get style for no data style
-      let noDataStyle = returnNoDataStyle(currentIndicatorLayer, indicators);
+      // Get style mode
+      const isSwipe = compareMode && compareType === "SWIPE";
+      const indicatorToStyle =
+        isSwipe && idx === 1 ? currentIndicatorSecondLayer : currentIndicatorLayer;
+
+      let noDataStyle = returnNoDataStyle(indicatorToStyle, indicators);
       if (!noDataStyle) {
         noDataStyle = {
           color: preferences.style_no_data_outline_color,
@@ -411,7 +416,7 @@ export function ReferenceLayer({ idx, map, referenceLayer, deckgl, is3DView }) {
       // Get indicator data per geom
       // This is needed for popup and rendering
       const indicatorValueByGeometry = getIndicatorValueByGeometry(
-        currentIndicatorLayer,
+        indicatorToStyle,
         indicators,
         indicatorsData,
         relatedTables,
@@ -436,13 +441,13 @@ export function ReferenceLayer({ idx, map, referenceLayer, deckgl, is3DView }) {
       const fillColorsAndGeom = {};
       const outlineColorsAndGeom = {};
       const outlineSizesAndGeom = {};
-      if (!compareMode) {
-        // If not compare mode
-        // Fill and color is from first indicator
+      if (!compareMode || isSwipe) {
+        // If not compare mode, or swipe mode (each map only has one indicator layer)
+        // Fill and color is from current indicator (for idx0) or second indicator (for idx1)
         for (const [key, value] of Object.entries(indicatorValueByGeometry)) {
           {
             const style = returnStyle(
-              currentIndicatorLayer,
+              indicatorToStyle,
               value,
               noDataStyle,
             );
@@ -903,9 +908,37 @@ export function ReferenceLayer({ idx, map, referenceLayer, deckgl, is3DView }) {
   return null;
 }
 
-export default function ReferenceLayers({ map, deckgl, is3DView }) {
+export default function ReferenceLayers({ map, mapAfter, deckgl, is3DView }) {
   const { referenceLayers } = useSelector((state) => state.map);
-  return map ? (
+  const { compareMode, compareType } = useSelector((state) => state.mapMode);
+
+  if (!map) {
+    return null;
+  }
+
+  if (compareMode && compareType === "SWIPE" && mapAfter) {
+    return (
+      <>
+        <ReferenceLayer
+          idx={0}
+          map={map}
+          referenceLayer={referenceLayers[0]}
+          deckgl={deckgl}
+          is3DView={is3DView}
+        />
+        <ReferenceLayer
+          idx={1}
+          map={mapAfter}
+          referenceLayer={referenceLayers[1]}
+          deckgl={deckgl}
+          is3DView={is3DView}
+        />
+        <GeorepoAuthorizationModal />
+      </>
+    );
+  }
+
+  return (
     <>
       <ReferenceLayer
         idx={0}
@@ -923,5 +956,5 @@ export default function ReferenceLayers({ map, deckgl, is3DView }) {
       />
       <GeorepoAuthorizationModal />
     </>
-  ) : null;
+  );
 }

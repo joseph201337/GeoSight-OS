@@ -27,6 +27,9 @@ import {
 } from "../../../../components/Icons";
 import { isDashboardToolEnabled } from "../../../../selectors/dashboard";
 import { Variables } from "../../../../utils/Variables";
+import Select from "@mui/material/Select";
+import MenuItem from "@mui/material/MenuItem";
+import FormControl from "@mui/material/FormControl";
 
 import "./style.scss";
 
@@ -36,6 +39,7 @@ import "./style.scss";
 export function CompareLayer({ disabled = false }) {
   const dispatch = useDispatch();
   const compareMode = useSelector((state) => state.mapMode?.compareMode);
+  const compareType = useSelector((state) => state.mapMode?.compareType);
   const enabled = useSelector(
     isDashboardToolEnabled(Variables.DASHBOARD.TOOL.COMPARE_LAYERS),
   );
@@ -52,11 +56,13 @@ export function CompareLayer({ disabled = false }) {
   if (!enabled) {
     return null;
   }
+
   return (
     <Plugin>
       <div
         className="CompareLayerComponent Active"
         data-tool={Variables.DASHBOARD.TOOL.COMPARE_LAYERS}
+        style={{ display: "flex", alignItems: "center", gap: "8px" }}
       >
         <PluginChild
           title={(compareMode ? "Turn off" : "Turn on") + " compare Layers"}
@@ -69,6 +75,20 @@ export function CompareLayer({ disabled = false }) {
         >
           {compareMode ? <CompareCheckedIcon /> : <CompareUncheckedIcon />}
         </PluginChild>
+        {compareMode ? (
+          <FormControl size="small" variant="standard">
+            <Select
+              value={compareType}
+              onChange={(event) => {
+                dispatch(Actions.MapMode.setCompareType(event.target.value));
+              }}
+              style={{ color: "#fff", minWidth: 120 }}
+            >
+              <MenuItem value="OUTLINE">Outline & Fill</MenuItem>
+              <MenuItem value="SWIPE">Swipe</MenuItem>
+            </Select>
+          </FormControl>
+        ) : null}
       </div>
     </Plugin>
   );

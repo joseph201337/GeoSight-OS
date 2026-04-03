@@ -18,15 +18,18 @@
 export const MAP_MODE_ACTION_NAME = "MAP_MODE";
 export const MAP_MODE_ACTION_TYPE_COMPARE = "MAP_MODE/COMPARE";
 export const MAP_MODE_ACTION_TYPE_COMPOSITE = "MAP_MODE/COMPOSITE";
+export const MAP_MODE_ACTION_TYPE_COMPARE_TYPE = "MAP_MODE/COMPARE_TYPE";
 
 interface mapModeProps {
   compareMode: boolean;
   compositeMode: boolean;
+  compareType: "OUTLINE" | "SWIPE";
 }
 
 const initialState: mapModeProps = {
   compareMode: false,
   compositeMode: false,
+  compareType: "OUTLINE",
 };
 export default function mapCompareModeReducer(
   state = initialState,
@@ -47,6 +50,18 @@ export default function mapCompareModeReducer(
         return {
           ...state,
           compareMode: value,
+          compareType: "OUTLINE",
+        };
+      }
+      case MAP_MODE_ACTION_TYPE_COMPARE_TYPE: {
+        const { value } = action;
+        if (value !== "SWIPE" && value !== "OUTLINE") {
+          return state;
+        }
+        return {
+          ...state,
+          compareType: value,
+          compareMode: true,
         };
       }
       case MAP_MODE_ACTION_TYPE_COMPOSITE: {

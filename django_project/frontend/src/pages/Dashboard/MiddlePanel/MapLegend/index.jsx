@@ -150,7 +150,7 @@ const RenderIndicatorLegend = ({ layer, name }) => {
 /** Map Legend.
  */
 export default function MapLegend() {
-  const { compareMode } = useSelector((state) => state.mapMode);
+  const { compareMode, compareType } = useSelector((state) => state.mapMode);
   const selectedIndicatorLayer = useSelector(
     (state) => state.selectedIndicatorLayer,
   );
@@ -167,7 +167,8 @@ export default function MapLegend() {
             <RenderIndicatorLegend
               layer={selectedIndicatorLayer}
               name={
-                selectedIndicatorLayer.name + (compareMode ? " (Outline)" : "")
+                selectedIndicatorLayer.name +
+                (compareMode && compareType === "OUTLINE" ? " (Outline)" : "")
               }
             />
           )}

@@ -20,6 +20,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import maplibregl from "maplibre-gl";
+// import Compare from "@maplibre/maplibre-gl-compare";
+// import "@maplibre/maplibre-gl-compare/dist/maplibre-gl-compare.css";
 import { MapboxOverlay } from "@deck.gl/mapbox/typed";
 import ReferenceLayerCentroid from "./ReferenceLayerCentroid";
 import ReferenceLayers from "./Layers/ReferenceLayer";
@@ -80,10 +82,13 @@ let previousLayerIds = [];
 export default function MapLibre({ leftPanelProps, rightPanelProps }) {
   const dispatch = useDispatch();
   const [map, setMap] = useState(null);
+  const [mapAfter, setMapAfter] = useState(null);
+  const [compareControl, setCompareControl] = useState(null);
   const [deckgl, setDeckGl] = useState(null);
   const extent = useSelector((state) => state.dashboard.data.extent);
   const minZoomConfig = useSelector((state) => state.dashboard.data.minZoom);
   const maxZoomConfig = useSelector((state) => state.dashboard.data.maxZoom);
+  const { compareMode, compareType } = useSelector((state) => state.mapMode);
   const { basemapLayer, is3dMode, position, force } = useSelector(
     (state) => state.map,
   );
@@ -97,6 +102,9 @@ export default function MapLibre({ leftPanelProps, rightPanelProps }) {
   );
 
   const drawingRef = useRef(null);
+  const syncFromMapRef = useRef(null);
+  const syncFromAfterRef = useRef(null);
+  const syncingRef = useRef(false);
   const redrawMeasurement = () => drawingRef.current.redrawMeasurement();
   const isMeasurementToolActive = () =>
     drawingRef.current.isMeasurementToolActive();
@@ -152,6 +160,7 @@ export default function MapLibre({ leftPanelProps, rightPanelProps }) {
         }),
       );
       newMap.once("load", () => {
+        console.log("Map initialized");
         setMap(newMap);
         setTimeout(
           () =>
@@ -234,6 +243,215 @@ export default function MapLibre({ leftPanelProps, rightPanelProps }) {
     }
   }, []);
 
+  useEffect(() => {
+    if (!map) {
+      return;
+    }
+
+    const isSwipe = compareMode && compareType === "SWIPE";
+
+    const cleanupSwipe = () => {
+      if (syncFromMapRef.current) {
+        map.off("move", syncFromMapRef.current);
+        syncFromMapRef.current = null;
+      }
+      if (syncFromAfterRef.current && mapAfter) {
+        mapAfter.off("move", syncFromAfterRef.current);
+        syncFromAfterRef.current = null;
+      }
+      if (compareControl && compareControl.remove) {
+        compareControl.remove();
+        setCompareControl(null);
+      }
+      if (mapAfter) {
+        mapAfter.remove();
+        setMapAfter(null);
+      }
+      // Clean up manual swipe elements
+      const handle = document.querySelector(".swipe-handle");
+      if (handle) handle.remove();
+      const mapContainer = document.getElementById("map");
+      const afterContainer = document.getElementById("map-after");
+      if (mapContainer) mapContainer.style.clipPath = "";
+      if (afterContainer) afterContainer.style.clipPath = "";
+    };
+
+    if (!isSwipe) {
+      cleanupSwipe();
+      return;
+    }
+
+    if (isSwipe && !mapAfter) {
+      const afterContainer = document.getElementById("map-after");
+      if (!afterContainer) {
+        return;
+      }
+
+      const after = new maplibregl.Map({
+        container: "map-after",
+        style: {
+          version: 8,
+          sources: {},
+          layers: [],
+          glyphs: "/static/fonts/{fontstack}/{range}.pbf",
+        },
+        center: [0, 0],
+        zoom: minZoomConfig > 1 ? minZoomConfig : 1,
+        minZoom: minZoomConfig,
+        maxZoom: maxZoomConfig,
+        attributionControl: false,
+      });
+
+      syncFromMapRef.current = () => {
+        if (syncingRef.current) return;
+        syncingRef.current = true;
+        if (map && after) {
+          // Only sync if not currently being dragged by user
+          setTimeout(() => {
+            after.jumpTo({
+              center: map.getCenter(),
+              zoom: map.getZoom(),
+              pitch: map.getPitch(),
+              bearing: map.getBearing(),
+              animate: false,
+            });
+            syncingRef.current = false;
+          }, 10);
+        } else {
+          syncingRef.current = false;
+        }
+      };
+
+      syncFromAfterRef.current = () => {
+        if (syncingRef.current) return;
+        syncingRef.current = true;
+        if (map && after) {
+          // Only sync if not currently being dragged by user
+          setTimeout(() => {
+            map.jumpTo({
+              center: after.getCenter(),
+              zoom: after.getZoom(),
+              pitch: after.getPitch(),
+              bearing: after.getBearing(),
+              animate: false,
+            });
+            syncingRef.current = false;
+          }, 10);
+        } else {
+          syncingRef.current = false;
+        }
+      };
+
+      after.once("load", () => {
+        console.log("Setting up Swipe mode manually");
+        after.addControl(new maplibregl.NavigationControl(), "bottom-left");
+
+        // Instead of using the Compare plugin, implement manual swipe
+        const setupSwipeComparison = () => {
+          const mapContainer = document.getElementById("map");
+          const afterContainer = document.getElementById("map-after");
+
+          if (!mapContainer || !afterContainer) return;
+
+          // Create swipe handle
+          const handle = document.createElement("div");
+          handle.className = "swipe-handle";
+          handle.style.cssText = `
+            position: absolute;
+            top: 0;
+            left: 50%;
+            width: 4px;
+            height: 100%;
+            background: white;
+            border-left: 2px solid black;
+            border-right: 2px solid black;
+            cursor: ew-resize;
+            z-index: 1000;
+            transform: translateX(-50%);
+          `;
+
+          // Position containers
+          mapContainer.style.position = "absolute";
+          mapContainer.style.top = "0";
+          mapContainer.style.left = "0";
+          mapContainer.style.width = "100%";
+          mapContainer.style.height = "100%";
+          mapContainer.style.clipPath = "inset(0 50% 0 0)";
+
+          afterContainer.style.position = "absolute";
+          afterContainer.style.top = "0";
+          afterContainer.style.left = "0";
+          afterContainer.style.width = "100%";
+          afterContainer.style.height = "100%";
+          afterContainer.style.clipPath = "inset(0 0 0 50%)";
+
+          // Add handle to map container
+          mapContainer.appendChild(handle);
+
+          // Make handle draggable
+          let isDragging = false;
+          let startX = 0;
+          let currentX = 50; // percentage
+
+          handle.addEventListener("mousedown", (e) => {
+            isDragging = true;
+            startX = e.clientX;
+            document.body.style.cursor = "ew-resize";
+            e.preventDefault();
+          });
+
+          document.addEventListener("mousemove", (e) => {
+            if (!isDragging) return;
+
+            const rect = mapContainer.getBoundingClientRect();
+            const x = ((e.clientX - rect.left) / rect.width) * 100;
+            currentX = Math.max(0, Math.min(100, x));
+
+            handle.style.left = `${currentX}%`;
+            mapContainer.style.clipPath = `inset(0 ${100 - currentX}% 0 0)`;
+            afterContainer.style.clipPath = `inset(0 0 0 ${currentX}%)`;
+          });
+
+          document.addEventListener("mouseup", () => {
+            if (isDragging) {
+              isDragging = false;
+              document.body.style.cursor = "";
+            }
+          });
+        };
+
+        setupSwipeComparison();
+        setMapAfter(after);
+        setCompareControl({
+          remove: () => {
+            const handle = document.querySelector(".swipe-handle");
+            if (handle) handle.remove();
+            const mapContainer = document.getElementById("map");
+            const afterContainer = document.getElementById("map-after");
+            if (mapContainer) mapContainer.style.clipPath = "";
+            if (afterContainer) afterContainer.style.clipPath = "";
+          }
+        });
+
+        // Re-enable sync
+        map.on("move", syncFromMapRef.current);
+        after.on("move", syncFromAfterRef.current);
+      });
+
+
+
+
+
+      return () => {
+        cleanupSwipe();
+      };
+    }
+
+    return () => {
+      cleanupSwipe();
+    };
+  }, [map, compareMode, compareType, mapAfter, compareControl, minZoomConfig, maxZoomConfig]);
+
   /**
    * EXTENT CHANGED
    * */
@@ -276,12 +494,13 @@ export default function MapLibre({ leftPanelProps, rightPanelProps }) {
    * @param {Object} source Layer config options.
    * @param {Object} layer Layer config options.
    */
-  const renderLayer = (id, source, layer) => {
-    removeLayer(map, id);
-    removeSource(map, id);
-    map.addSource(id, source);
+  const renderLayer = (id, source, layer, targetMap = map) => {
+    if (!targetMap) return;
+    removeLayer(targetMap, id);
+    removeSource(targetMap, id);
+    targetMap.addSource(id, source);
     addLayerWithOrder(
-      map,
+      targetMap,
       {
         ...layer,
         id: id,
@@ -294,9 +513,12 @@ export default function MapLibre({ leftPanelProps, rightPanelProps }) {
   /** BASEMAP CHANGED */
   useEffect(() => {
     if (map && basemapLayer) {
-      renderLayer(BASEMAP_ID, basemapLayer, { type: "raster" });
+      renderLayer(BASEMAP_ID, basemapLayer, { type: "raster" }, map);
     }
-  }, [map, basemapLayer]);
+    if (mapAfter && basemapLayer) {
+      renderLayer(BASEMAP_ID, basemapLayer, { type: "raster" }, mapAfter);
+    }
+  }, [map, mapAfter, basemapLayer]);
 
   return (
     <section
@@ -394,9 +616,12 @@ export default function MapLibre({ leftPanelProps, rightPanelProps }) {
       <SearchGeometryMobile />
 
       <div id="map"></div>
+      {compareMode && compareType === "SWIPE" ? (
+        <div id="map-after"></div>
+      ) : null}
 
-      <ReferenceLayers map={map} deckgl={deckgl} is3DView={is3dMode} />
-      <ContextLayers map={map} />
+      <ReferenceLayers map={map} mapAfter={mapAfter} deckgl={deckgl} is3DView={is3dMode} />
+      <ContextLayers map={map} mapAfter={mapAfter} />
       {map ? (
         <>
           <IndicatorLayersReferenceControl />

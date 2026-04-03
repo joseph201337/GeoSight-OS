@@ -17,6 +17,7 @@ import {
   MAP_MODE_ACTION_NAME,
   MAP_MODE_ACTION_TYPE_COMPARE,
   MAP_MODE_ACTION_TYPE_COMPOSITE,
+  MAP_MODE_ACTION_TYPE_COMPARE_TYPE,
 } from "./index";
 
 /**
@@ -51,6 +52,15 @@ export function deactivateCompare() {
   };
 }
 
+/** Set compare type to OUTLINE or SWIPE. */
+export function setCompareType(value: string) {
+  return {
+    name: MAP_MODE_ACTION_NAME,
+    type: MAP_MODE_ACTION_TYPE_COMPARE_TYPE,
+    value,
+  };
+}
+
 /**Toggle composite mode.*/
 export function toggleCompositeMode() {
   return {
@@ -63,5 +73,6 @@ export default {
   changeCompareMode,
   activateCompare,
   deactivateCompare,
+  setCompareType,
   toggleCompositeMode,
 };

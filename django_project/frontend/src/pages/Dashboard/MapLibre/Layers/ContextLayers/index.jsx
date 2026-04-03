@@ -405,11 +405,14 @@ export function ContextLayer({ contextLayerData, map, contextLayerOrder }) {
 /**
  * ReferenceLayer selector.
  */
-export default function ContextLayers({ map }) {
+export default function ContextLayers({ map, mapAfter }) {
   const { contextLayers, contextLayersStructure } = useSelector(
     (state) => state.dashboard.data,
   );
   const contextLayersData = useSelector((state) => state.map?.contextLayers);
+  const { compareMode, compareType } = useSelector((state) => state.mapMode);
+  const isSwipe = compareMode && compareType === "SWIPE";
+
   const contextLayerOrder = dataStructureToListData(
     contextLayers,
     contextLayersStructure,
@@ -424,24 +427,31 @@ export default function ContextLayers({ map }) {
       const id = ID + "-" + contextLayerData.id;
       if (!contextLayersData[contextLayerData.id]) {
         removeLayers(map, id);
+        if (mapAfter) {
+          removeLayers(mapAfter, id);
+        }
       }
     });
-  }, [contextLayers, contextLayersData]);
+  }, [contextLayers, contextLayersData, map, mapAfter]);
+
+  const renderContextLayers = (targetMap) =>
+    contextLayers
+      ? contextLayers.map((contextLayer) => {
+          return (
+            <ContextLayer
+              key={`${contextLayer.id}-${targetMap === mapAfter ? "after" : "before"}`}
+              contextLayerData={contextLayer}
+              map={targetMap}
+              contextLayerOrder={contextLayerOrder}
+            />
+          );
+        })
+      : "";
 
   return (
     <Fragment>
-      {contextLayers
-        ? contextLayers.map((contextLayer) => {
-            return (
-              <ContextLayer
-                key={contextLayer.id}
-                contextLayerData={contextLayer}
-                map={map}
-                contextLayerOrder={contextLayerOrder}
-              />
-            );
-          })
-        : ""}
+      {map ? renderContextLayers(map) : null}
+      {isSwipe && mapAfter ? renderContextLayers(mapAfter) : null}
     </Fragment>
   );
 }
