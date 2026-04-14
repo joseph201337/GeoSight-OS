@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { BASE_URL } from "../../variables";
-import { fillProjectName } from "../../utils/project";
+import { deleteProject, fillProjectName } from "../../utils/project";
 
 // URL That we need to check
 const timeout = 2000;
@@ -15,6 +15,10 @@ test.describe('Create project', () => {
   // @ts-ignore
   test('Create with default config', async ({ page }) => {
     const name = 'Test Project Default';
+    // --------------------------------------------------------------------
+    // Delete project if exists
+    // --------------------------------------------------------------------
+    await deleteProject(page, name)
     let lastLog = null
     let lastBBOX = null
     page.on('console', msg => {
@@ -35,6 +39,7 @@ test.describe('Create project', () => {
         }
       }
     });
+    await page.goto('');
     await page.waitForSelector('.Home', { timeout: timeout });
     await page.getByText('Admin panel').click();
     await expect(page.getByText('Create New Project')).toBeVisible();
@@ -46,6 +51,10 @@ test.describe('Create project', () => {
     // Select dataset
     await page.locator(".ReferenceDatasetSection input").click();
     await page.getByRole('cell', { name: 'Somalia', exact: true }).click();
+
+    // Using concept uuid
+    await page.getByPlaceholder('Select 1 option').click();
+    await page.getByRole('option', { name: 'Concept uuid' }).click();
 
     // Update indicator layer transparency
     const slider = await page.locator('.transparency-indicator-layer .MuiSlider-root');
@@ -131,7 +140,6 @@ test.describe('Create project', () => {
     await page.locator('.WhereConfigurationResult > svg').click();
     await page.getByRole('combobox').filter({ hasText: 'Date' }).click();
     await page.getByRole('option', { name: 'Partner' }).click();
-    await page.getByRole('option', { name: 'Partner' }).click();
     await page.getByRole('combobox', { name: 'Select 1 option' }).click();
     await page.getByRole('option', { name: 'Partner B' }).click();
     await page.getByRole('button', { name: 'Apply' }).click();
@@ -213,6 +221,16 @@ test.describe('Create project', () => {
     await expect(page.locator('.FilterEditModalQueryWrapper').getByPlaceholder('Select 1 option')).toHaveValue('Awdal');
     await page.locator('.modal--header--close').click();
 
+    // Filter 3 real
+    await page.locator('.Filters').getByTestId('AddCircleIcon').click();
+    await page.getByText('Pick the field').click();
+    await page.getByRole('option', { name: 'ucode' }).nth(1).click();
+    await page.getByRole('combobox', { name: 'Select 1 option' }).click();
+    await page.getByRole('option', { name: 'SOM_0001_V1' }).click();
+    await page.getByRole('textbox', { name: 'Filter name' }).fill('Admin level 1');
+    await page.locator('.modal--content').getByRole('checkbox').check();
+    await page.getByRole('button', { name: 'Create filter' }).click();
+
     // --------------------------------------------
     // Save
     // --------------------------------------------
@@ -228,10 +246,10 @@ test.describe('Create project', () => {
 
     // Check transparency
     await page.getByRole('tab', { name: 'Context Layers' }).click();
-    await expect(page.locator('#simple-tabpanel-0.layers-panel .Transparency .MuiSlider-valueLabelLabel')).toBeHidden();
-    await expect(page.locator('#simple-tabpanel-0 .TreeView').first()).toHaveText("No context layers available");
+    await expect(page.locator('#context-layer-tab-panel.layers-panel .Transparency .MuiSlider-valueLabelLabel')).toBeHidden();
+    await expect(page.locator('#context-layer-tab-panel .TreeView').first()).toHaveText("No context layers available");
     await page.getByRole('tab', { name: 'Indicators' }).click();
-    await expect(page.locator('#simple-tabpanel-1.layers-panel .Transparency .MuiSlider-valueLabelLabel').getByText('50', { exact: true })).toBeVisible();
+    await expect(page.locator('#indicator-tab-panel.layers-panel .Transparency .MuiSlider-valueLabelLabel').getByText('50', { exact: true })).toBeVisible();
 
     await page.goto(editUrl);
     await page.waitForURL(editUrl)
@@ -246,9 +264,9 @@ test.describe('Create project', () => {
     await expect(page.getByText('Configuration has been saved!')).toBeVisible()
     await page.goto('/project/test-project-default');
     await page.getByRole('tab', { name: 'Context Layers' }).click();
-    await expect(page.locator('#simple-tabpanel-0.layers-panel .Transparency .MuiSlider-valueLabelLabel').getByText('25', { exact: true })).toBeVisible();
+    await expect(page.locator('#context-layer-tab-panel.layers-panel .Transparency .MuiSlider-valueLabelLabel').getByText('25', { exact: true })).toBeVisible();
     await page.getByRole('tab', { name: 'Indicators' }).click();
-    await expect(page.locator('#simple-tabpanel-1.layers-panel .Transparency .MuiSlider-valueLabelLabel').getByText('50', { exact: true })).toBeVisible();
+    await expect(page.locator('#indicator-tab-panel.layers-panel .Transparency .MuiSlider-valueLabelLabel').getByText('50', { exact: true })).toBeVisible();
 
     // Check RRR as Context Layer visualization
     await page.getByRole('tab', { name: 'Context Layers' }).click();
@@ -294,6 +312,24 @@ test.describe('Create project', () => {
     await page.waitForTimeout(1000);
     await expect(lastLog).toEqual([])
 
+    // Do fast filter
+    await page.getByRole('button', { name: 'Admin level 1 Delete Group' }).getByRole('checkbox').check();
+    await page.getByRole('button', { name: 'Admin level 1 Delete Group' }).click();
+    await page.locator('#filter-tab-panel').getByPlaceholder('Select 1 option').click();
+    await page.getByRole('option', { name: 'SOM_0001_V1' }).click();
+    await page.getByRole('option', { name: 'SOM_0002_V1' }).click();
+    await page.getByRole('option', { name: 'SOM_0003_V1' }).click();
+    await page.getByRole('option', { name: 'SOM_0004_V1' }).click();
+    await page.getByRole('option', { name: 'SOM_0005_V1' }).click();
+    await page.getByRole('option', { name: 'SOM_0006_V1' }).click();
+    await page.getByRole('option', { name: 'SOM_0007_V1' }).click();
+    await page.getByRole('option', { name: 'SOM_0008_V1' }).click();
+    await page.getByRole('option', { name: 'SOM_0009_V1' }).click();
+    await page.getByRole('option', { name: 'SOM_0010_V1' }).click();
+    await page.getByRole('option', { name: 'SOM_0011_V1' }).click();
+    await page.getByRole('option', { name: 'SOM_0012_V1' }).click();
+    await page.getByRole('option', { name: 'SOM_0013_V1' }).click();
+
     // Check RT
     await page.getByRole('tab', { name: 'Layers', exact: true }).click();
     await page.getByRole('tab', { name: 'Indicators' }).click();
@@ -307,7 +343,7 @@ test.describe('Create project', () => {
     await page.waitForURL(`${BASE_URL}/admin/project/test-project-default/edit`);
     await expect(page.locator('.MoreActionIcon')).toBeVisible();
     await expect(page.locator('.General .ReferenceDatasetSection input')).toHaveValue('Somalia');
-    await expect(page.locator('.General .CodeMappingConfig input')).toHaveValue('Latest ucode');
+    await expect(page.locator('.General .CodeMappingConfig input')).toHaveValue('Concept uuid');
     await expect(page.getByPlaceholder('Select default admin level')).toHaveValue('Admin Level 2');
 
     const availableLayers = [];
