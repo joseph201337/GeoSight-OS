@@ -85,6 +85,8 @@ export default function MapLibre({ leftPanelProps, rightPanelProps }) {
   const [mapAfter, setMapAfter] = useState(null);
   const [compareControl, setCompareControl] = useState(null);
   const [deckgl, setDeckGl] = useState(null);
+  const mapAfterRef = useRef(null);
+  const compareControlRef = useRef(null);
   const extent = useSelector((state) => state.dashboard.data.extent);
   const minZoomConfig = useSelector((state) => state.dashboard.data.minZoom);
   const maxZoomConfig = useSelector((state) => state.dashboard.data.maxZoom);
@@ -93,6 +95,7 @@ export default function MapLibre({ leftPanelProps, rightPanelProps }) {
     (state) => state.map,
   );
   const transparencyRef = useRef(null);
+  const transparencyAfterRef = useRef(null);
 
   const view3DEnable = useSelector(
     isDashboardToolEnabled(Variables.DASHBOARD.TOOL.VIEW_3D),
@@ -255,16 +258,18 @@ export default function MapLibre({ leftPanelProps, rightPanelProps }) {
         map.off("move", syncFromMapRef.current);
         syncFromMapRef.current = null;
       }
-      if (syncFromAfterRef.current && mapAfter) {
-        mapAfter.off("move", syncFromAfterRef.current);
+      if (syncFromAfterRef.current && mapAfterRef.current) {
+        mapAfterRef.current.off("move", syncFromAfterRef.current);
         syncFromAfterRef.current = null;
       }
-      if (compareControl && compareControl.remove) {
-        compareControl.remove();
+      if (compareControlRef.current && compareControlRef.current.remove) {
+        compareControlRef.current.remove();
+        compareControlRef.current = null;
         setCompareControl(null);
       }
-      if (mapAfter) {
-        mapAfter.remove();
+      if (mapAfterRef.current) {
+        mapAfterRef.current.remove();
+        mapAfterRef.current = null;
         setMapAfter(null);
       }
       // Clean up manual swipe elements
@@ -281,7 +286,7 @@ export default function MapLibre({ leftPanelProps, rightPanelProps }) {
       return;
     }
 
-    if (isSwipe && !mapAfter) {
+    if (isSwipe && !mapAfterRef.current) {
       const afterContainer = document.getElementById("map-after");
       if (!afterContainer) {
         return;
@@ -345,7 +350,11 @@ export default function MapLibre({ leftPanelProps, rightPanelProps }) {
       after.once("load", () => {
         console.log("Setting up Swipe mode manually");
         after.addControl(new maplibregl.NavigationControl(), "bottom-left");
-
+        after.on("styledata", () => {
+          if (transparencyAfterRef.current) {
+            transparencyAfterRef.current.update();
+          }
+        });
         // Instead of using the Compare plugin, implement manual swipe
         const setupSwipeComparison = () => {
           const mapContainer = document.getElementById("map");
@@ -360,15 +369,54 @@ export default function MapLibre({ leftPanelProps, rightPanelProps }) {
             position: absolute;
             top: 0;
             left: 50%;
-            width: 4px;
+            width: 44px;
             height: 100%;
-            background: white;
-            border-left: 2px solid black;
-            border-right: 2px solid black;
             cursor: ew-resize;
             z-index: 1000;
             transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
           `;
+
+          // Vertical line
+          const line = document.createElement("div");
+          line.style.cssText = `
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 4px;
+            height: 100%;
+            background: white;
+            border-left: 1px solid rgba(0,0,0,0.3);
+            border-right: 1px solid rgba(0,0,0,0.3);
+            pointer-events: none;
+          `;
+
+          // Grip button
+          const grip = document.createElement("div");
+          grip.style.cssText = `
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 32px;
+            height: 32px;
+            background: white;
+            border-radius: 50%;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            font-size: 14px;
+            color: #555;
+          `;
+          grip.innerHTML = '&#8596;';
+
+          handle.appendChild(line);
+          handle.appendChild(grip);
 
           // Position containers
           mapContainer.style.position = "absolute";
@@ -390,26 +438,29 @@ export default function MapLibre({ leftPanelProps, rightPanelProps }) {
 
           // Make handle draggable
           let isDragging = false;
-          let startX = 0;
           let currentX = 50; // percentage
+
+          const getX = (clientX) => {
+            const rect = mapContainer.getBoundingClientRect();
+            return Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
+          };
+
+          const updatePosition = (x) => {
+            currentX = x;
+            handle.style.left = `${currentX}%`;
+            mapContainer.style.clipPath = `inset(0 ${100 - currentX}% 0 0)`;
+            afterContainer.style.clipPath = `inset(0 0 0 ${currentX}%)`;
+          };
 
           handle.addEventListener("mousedown", (e) => {
             isDragging = true;
-            startX = e.clientX;
             document.body.style.cursor = "ew-resize";
             e.preventDefault();
           });
 
           document.addEventListener("mousemove", (e) => {
             if (!isDragging) return;
-
-            const rect = mapContainer.getBoundingClientRect();
-            const x = ((e.clientX - rect.left) / rect.width) * 100;
-            currentX = Math.max(0, Math.min(100, x));
-
-            handle.style.left = `${currentX}%`;
-            mapContainer.style.clipPath = `inset(0 ${100 - currentX}% 0 0)`;
-            afterContainer.style.clipPath = `inset(0 0 0 ${currentX}%)`;
+            updatePosition(getX(e.clientX));
           });
 
           document.addEventListener("mouseup", () => {
@@ -418,11 +469,24 @@ export default function MapLibre({ leftPanelProps, rightPanelProps }) {
               document.body.style.cursor = "";
             }
           });
+
+          handle.addEventListener("touchstart", (e) => {
+            isDragging = true;
+            e.preventDefault();
+          }, { passive: false });
+
+          document.addEventListener("touchmove", (e) => {
+            if (!isDragging) return;
+            updatePosition(getX(e.touches[0].clientX));
+          }, { passive: true });
+
+          document.addEventListener("touchend", () => {
+            isDragging = false;
+          });
         };
 
         setupSwipeComparison();
-        setMapAfter(after);
-        setCompareControl({
+        const ctrl = {
           remove: () => {
             const handle = document.querySelector(".swipe-handle");
             if (handle) handle.remove();
@@ -431,7 +495,11 @@ export default function MapLibre({ leftPanelProps, rightPanelProps }) {
             if (mapContainer) mapContainer.style.clipPath = "";
             if (afterContainer) afterContainer.style.clipPath = "";
           }
-        });
+        };
+        mapAfterRef.current = after;
+        compareControlRef.current = ctrl;
+        setMapAfter(after);
+        setCompareControl(ctrl);
 
         // Re-enable sync
         map.on("move", syncFromMapRef.current);
@@ -450,7 +518,7 @@ export default function MapLibre({ leftPanelProps, rightPanelProps }) {
     return () => {
       cleanupSwipe();
     };
-  }, [map, compareMode, compareType, mapAfter, compareControl, minZoomConfig, maxZoomConfig]);
+  }, [map, compareMode, compareType, minZoomConfig, maxZoomConfig]);
 
   /**
    * EXTENT CHANGED
@@ -627,7 +695,13 @@ export default function MapLibre({ leftPanelProps, rightPanelProps }) {
           <IndicatorLayersReferenceControl />
           <DatasetGeometryData />
           <ReferenceLayerCentroid map={map} />
+          {compareMode && compareType === "SWIPE" && mapAfter ? (
+            <ReferenceLayerCentroid map={mapAfter} isSecondary={true} />
+          ) : null}
           <TransparencyControl map={map} ref={transparencyRef} />
+          {compareMode && compareType === "SWIPE" && mapAfter ? (
+            <TransparencyControl map={mapAfter} ref={transparencyAfterRef} />
+          ) : null}
         </>
       ) : null}
 

@@ -17,7 +17,7 @@
    REFERENCE LAYER
    ========================================================================== */
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { MVTLayer } from "@deck.gl/geo-layers";
 import { GeoJsonLayer } from "@deck.gl/layers";
@@ -77,12 +77,6 @@ const OUTLINE_LAYER_ID_KEY = REFERENCE_LAYER_ID_KEY + "-outline";
 let deckGlData = {};
 let deckGlElevationTime = 0;
 let deckGlAnimationDate = null;
-let currentRenderDataString = "";
-let currentIndicatorLayerStringData = "";
-let currentIndicatorSecondLayerStringData = "";
-let currentCompareMode = false;
-
-let prevCurrentLevel = null;
 
 /**
  * ReferenceLayer selector.
@@ -131,6 +125,12 @@ export function ReferenceLayer({ idx, map, referenceLayer, deckgl, is3DView }) {
   const [layerCreated, setLayerCreated] = useState(false);
   const [referenceLayerConfig, setReferenceLayerConfig] = useState({});
 
+  const currentRenderDataStringRef = useRef("");
+  const currentIndicatorLayerStringDataRef = useRef("");
+  const currentIndicatorSecondLayerStringDataRef = useRef("");
+  const currentCompareModeRef = useRef(false);
+  const prevCurrentLevelRef = useRef(null);
+
   const geomFieldOnVectorTile = useSelector(isProjectUsingConceptUUID())
     ? "concept_uuid"
     : "ucode";
@@ -170,20 +170,20 @@ export function ReferenceLayer({ idx, map, referenceLayer, deckgl, is3DView }) {
         currentIndicatorSecondLayer,
       );
       if (
-        currentRenderDataString !== dataInString ||
-        currentIndicatorLayerStringData !== currentIndicatorLayerString ||
-        currentIndicatorSecondLayerStringData !==
+        currentRenderDataStringRef.current !== dataInString ||
+        currentIndicatorLayerStringDataRef.current !== currentIndicatorLayerString ||
+        currentIndicatorSecondLayerStringDataRef.current !==
           currentIndicatorSecondLayerString ||
-        currentCompareMode !== compareMode ||
-        currentLevel !== prevCurrentLevel
+        currentCompareModeRef.current !== compareMode ||
+        currentLevel !== prevCurrentLevelRef.current
       ) {
         updateStyle();
-        currentRenderDataString = dataInString;
-        currentIndicatorLayerStringData = currentIndicatorLayerString;
-        currentIndicatorSecondLayerStringData =
+        currentRenderDataStringRef.current = dataInString;
+        currentIndicatorLayerStringDataRef.current = currentIndicatorLayerString;
+        currentIndicatorSecondLayerStringDataRef.current =
           currentIndicatorSecondLayerString;
-        currentCompareMode = compareMode;
-        prevCurrentLevel = currentLevel;
+        currentCompareModeRef.current = compareMode;
+        prevCurrentLevelRef.current = currentLevel;
       }
     }
   }, [
@@ -353,7 +353,7 @@ export function ReferenceLayer({ idx, map, referenceLayer, deckgl, is3DView }) {
   const updateFilter = () => {
     if (isReady()) {
       const codes = checkCodes();
-      if (codes) {
+      if (codes && codes.length > 0) {
         map.setFilter(
           FILL_LAYER_ID,
           ["in", geomFieldOnVectorTile].concat(codes),
@@ -935,7 +935,7 @@ export default function ReferenceLayers({ map, mapAfter, deckgl, is3DView }) {
         <ReferenceLayer
           idx={1}
           map={mapAfter}
-          referenceLayer={referenceLayers[1]}
+          referenceLayer={referenceLayers[1] || referenceLayers[0]}
           deckgl={deckgl}
           is3DView={is3DView}
         />

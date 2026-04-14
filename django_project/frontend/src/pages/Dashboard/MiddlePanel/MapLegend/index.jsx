@@ -168,14 +168,21 @@ export default function MapLegend() {
               layer={selectedIndicatorLayer}
               name={
                 selectedIndicatorLayer.name +
-                (compareMode && compareType === "OUTLINE" ? " (Outline)" : "")
+                (compareMode
+                  ? compareType === "OUTLINE"
+                    ? " (Outline)"
+                    : " (Left)"
+                  : "")
               }
             />
           )}
           {selectedIndicatorSecondLayer.id && indicatorShow && (
             <RenderIndicatorLegend
               layer={selectedIndicatorSecondLayer}
-              name={selectedIndicatorSecondLayer.name + " (Inner)"}
+              name={
+                selectedIndicatorSecondLayer.name +
+                (compareMode && compareType === "SWIPE" ? " (Right)" : " (Inner)")
+              }
             />
           )}
         </div>

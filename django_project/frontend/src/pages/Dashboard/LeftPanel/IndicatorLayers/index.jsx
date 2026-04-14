@@ -71,7 +71,9 @@ export function IndicatorLayers() {
 
   const relatedTableData = useSelector((state) => state.relatedTableData);
   const compareMode = useSelector((state) => state.mapMode.compareMode);
+  const compareType = useSelector((state) => state.mapMode.compareType);
   const compositeMode = useSelector((state) => state.mapMode.compositeMode);
+  const isSwipe = compareMode && compareType === "SWIPE";
   const [treeData, setTreeData] = useState([]);
 
   /** Update current indicator **/
@@ -298,6 +300,11 @@ export function IndicatorLayers() {
 
   return (
     <Fragment>
+      {isSwipe && (
+        <div style={{ padding: "4px 8px 2px", fontSize: "0.75rem", color: "#666" }}>
+          <span>1st checked = <b>left</b> map &nbsp;|&nbsp; 2nd checked = <b>right</b> map</span>
+        </div>
+      )}
       <SidePanelTreeView
         data={treeData}
         selectable={true}

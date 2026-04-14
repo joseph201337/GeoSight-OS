@@ -29,6 +29,7 @@ import {
 import { dictDeepCopy } from "../../../../utils/main";
 import {
   getIndicatorDataByLayer,
+  getIndicatorValueByGeometry,
   UpdateStyleData,
 } from "../../../../utils/indicatorData";
 import { hideLabel, renderLabel, resetLabel, showLabel } from "./Label";
@@ -40,21 +41,21 @@ import { ReferenceLayerFilterCentroid } from "./CentroidFiltered";
 
 import "./style.scss";
 
-let lastConfig = {};
-let lastRequest = null;
-let lastRequestRender = null;
-
 /**
  * GeometryCenter.
  */
-export default function ReferenceLayerCentroid({ map }) {
-  const { indicators, indicatorLayers, referenceLayer } = useSelector(
+export default function ReferenceLayerCentroid({ map, isSecondary = false }) {
+  const lastConfigRef = useRef({});
+  const lastRequestRef = useRef(null);
+  const lastRequestRenderRef = useRef(null);
+  const { indicators, indicatorLayers, referenceLayer, relatedTables, geoField } = useSelector(
     (state) => state.dashboard.data,
   );
   const { showIndicatorMapLabel } = useSelector((state) => state.globalState);
   const { referenceLayers, indicatorShow } = useSelector((state) => state.map);
   const datasetGeometries = useSelector((state) => state.datasetGeometries);
   const indicatorsData = useSelector((state) => state.indicatorsData);
+  const relatedTableData = useSelector((state) => state.relatedTableData);
   const selectedIndicatorLayer = useSelector(
     (state) => state.selectedIndicatorLayer,
   );
@@ -62,7 +63,29 @@ export default function ReferenceLayerCentroid({ map }) {
     (state) => state.selectedIndicatorSecondLayer,
   );
   const selectedAdminLevel = useSelector((state) => state.selectedAdminLevel);
-  const mapGeometryValue = useSelector((state) => state.mapGeometryValue);
+  const selectedGlobalTime = useSelector((state) => state.selectedGlobalTime);
+  const storeMapGeometryValue = useSelector((state) => state.mapGeometryValue);
+
+  // For the secondary (right) map in swipe mode, use the second indicator
+  // and compute its own geometry values instead of reading the shared store key.
+  // Fall back to the primary indicator if no second layer is selected.
+  const activeIndicatorLayer = isSecondary
+    ? (selectedIndicatorSecondLayer?.indicators?.length ? selectedIndicatorSecondLayer : selectedIndicatorLayer)
+    : selectedIndicatorLayer;
+  const mapGeometryValue = isSecondary
+    ? getIndicatorValueByGeometry(
+        activeIndicatorLayer,
+        indicators,
+        indicatorsData,
+        relatedTables,
+        relatedTableData,
+        selectedGlobalTime,
+        geoField,
+        null,
+        referenceLayer,
+        selectedAdminLevel?.level,
+      )
+    : storeMapGeometryValue;
 
   const [geometriesDataState, setGeometriesDataState] = useState({
     identifiers: null,
@@ -81,7 +104,7 @@ export default function ReferenceLayerCentroid({ map }) {
   // When reference layer changed, fetch features
   useEffect(() => {
     const currRequest = new Date().getTime();
-    lastRequestRender = currRequest;
+    lastRequestRenderRef.current = currRequest;
     const identifiers = referenceLayers.map(
       (referenceLayer) => referenceLayer.identifier,
     );
@@ -93,7 +116,7 @@ export default function ReferenceLayerCentroid({ map }) {
           datasetGeometries,
         },
         (features) => {
-          if (currRequest === lastRequestRender) {
+          if (currRequest === lastRequestRenderRef.current) {
             setGeometriesDataState({
               identifiers: identifiers,
               geometries: features,
@@ -176,8 +199,8 @@ export default function ReferenceLayerCentroid({ map }) {
 
     let rendering = true;
     // Check if multiple indicator or not
-    let indicatorLayer = selectedIndicatorLayer;
-    if (selectedIndicatorSecondLayer?.indicators?.length >= 2) {
+    let indicatorLayer = activeIndicatorLayer;
+    if (!isSecondary && selectedIndicatorSecondLayer?.indicators?.length >= 2) {
       indicatorLayer = selectedIndicatorSecondLayer;
     }
     if (!indicatorLayer.indicators) {
@@ -190,7 +213,7 @@ export default function ReferenceLayerCentroid({ map }) {
       rendering = false;
     }
     if (!rendering) {
-      lastConfig = {};
+      lastConfigRef.current = {};
       reset(map);
       return;
     }
@@ -256,7 +279,7 @@ export default function ReferenceLayerCentroid({ map }) {
       }
       if (!rendering) {
         reset(map);
-        lastConfig = {};
+        lastConfigRef.current = {};
         return;
       }
 
@@ -274,7 +297,7 @@ export default function ReferenceLayerCentroid({ map }) {
         referenceLayers: identifiers,
       };
       // If config is same, don't render to prevent flicker
-      if (JSON.stringify(config) === JSON.stringify(lastConfig)) {
+      if (JSON.stringify(config) === JSON.stringify(lastConfigRef.current)) {
         return;
       }
 
@@ -366,7 +389,7 @@ export default function ReferenceLayerCentroid({ map }) {
           map,
           features,
           indicatorLayer,
-          lastConfig,
+          lastConfigRef.current,
           config,
           transparency,
         );
@@ -387,9 +410,9 @@ export default function ReferenceLayerCentroid({ map }) {
               properties.chart_style.size = percentageSize * diffSize + minSize;
             });
         }
-        renderChart(map, features, lastConfig, config, transparency);
+        renderChart(map, features, lastConfigRef.current, config, transparency);
       }
-      lastConfig = config;
+      lastConfigRef.current = config;
       filterRef.current?.call();
     } else {
       // ---------------------------------------------------------
@@ -428,13 +451,13 @@ export default function ReferenceLayerCentroid({ map }) {
         ),
         selectedAdminLevel: selectedAdminLevel.level,
       };
-      if (JSON.stringify(config) !== JSON.stringify(lastConfig)) {
+      if (JSON.stringify(config) !== JSON.stringify(lastConfigRef.current)) {
         reset(map);
       }
-      lastConfig = config;
+      lastConfigRef.current = config;
 
       const currRequest = new Date().getTime();
-      lastRequest = currRequest;
+      lastRequestRef.current = currRequest;
       ExecuteWebWorker(
         worker,
         {
@@ -442,7 +465,7 @@ export default function ReferenceLayerCentroid({ map }) {
           mapGeometryValue,
         },
         (features) => {
-          if (currRequest === lastRequest) {
+          if (currRequest === lastRequestRef.current) {
             renderLabel(
               map,
               features,
@@ -466,8 +489,11 @@ export default function ReferenceLayerCentroid({ map }) {
     selectedIndicatorSecondLayer,
     selectedAdminLevel,
     mapGeometryValue,
+    storeMapGeometryValue,
     referenceLayers,
     showIndicatorMapLabel,
+    relatedTableData,
+    selectedGlobalTime,
   ]);
 
   return (
