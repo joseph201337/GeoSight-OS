@@ -418,6 +418,12 @@ export default function ReferenceLayerCentroid({ map, isSecondary = false }) {
       // ---------------------------------------------------------
       // CREATE LABEL IF SINGLE INDICATOR
       // ---------------------------------------------------------
+      // For secondary map, only render labels if it has its own indicator layer selected
+      if (isSecondary && !selectedIndicatorSecondLayer?.id) {
+        reset(map);
+        return;
+      }
+      
       // Remove charts when label
       resetCharts(map);
 
@@ -427,9 +433,14 @@ export default function ReferenceLayerCentroid({ map, isSecondary = false }) {
         return;
       }
       // When there is no config, no label rendered
-      if (!labelConfig) {
+      if (!labelConfig && !isSecondary) {
         reset(map);
         return;
+      }
+      // For secondary map, if no labelConfig from layer, still proceed
+      // to render labels from mapGeometryValue
+      if (!labelConfig && isSecondary) {
+        labelConfig = {};
       }
       if (!showIndicatorMapLabel) {
         return;
@@ -442,10 +453,7 @@ export default function ReferenceLayerCentroid({ map, isSecondary = false }) {
         return;
       }
       const config = {
-        selectedIndicators: [
-          selectedIndicatorLayer?.id,
-          selectedIndicatorSecondLayer?.id,
-        ],
+        selectedIndicator: isSecondary ? selectedIndicatorSecondLayer?.id : selectedIndicatorLayer?.id,
         referenceLayers: referenceLayers.map(
           (referenceLayer) => referenceLayer.identifier,
         ),
