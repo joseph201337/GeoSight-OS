@@ -152,6 +152,9 @@ export function IndicatorLayers() {
     if (!compareMode) {
       setCurrentIndicatorLayers([currentIndicatorLayer, 0]);
       updateCurrentIndicator(null, Actions.SelectedIndicatorSecondLayer);
+    } else if (compareMode && currentIndicatorLayers.length === 1) {
+      setCurrentIndicatorLayers([currentIndicatorLayers[0], 0]);
+      updateCurrentIndicator(null, Actions.SelectedIndicatorSecondLayer);
     }
   }, [compareMode]);
 
@@ -289,10 +292,12 @@ export function IndicatorLayers() {
         if (currentIndicatorLayer) {
           setCurrentIndicatorLayers([0, 0]);
           updateCurrentIndicator(null, Actions.SelectedIndicatorLayer);
+          updateCurrentIndicator(null, Actions.SelectedIndicatorSecondLayer);
         }
-      }
-      if (selectedData.length >= 1) {
-        setCurrentIndicatorLayers(selectedData);
+      } else if (selectedData.length === 1) {
+        setCurrentIndicatorLayers([selectedData[0], 0]);
+      } else {
+        setCurrentIndicatorLayers([selectedData[0], selectedData[1]]);
       }
       updateOtherLayers(selectedData);
     }, 100);

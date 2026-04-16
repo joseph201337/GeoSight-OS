@@ -24,13 +24,15 @@ import { Logger } from "../../../../../utils/logger";
 import { formatStyle } from "../../../../../utils/label.tsx";
 
 export const INDICATOR_LABEL_ID = "indicator-label";
-let lastFeatures = null;
+let lastFeaturesMap = new WeakMap();
 
 /** Remove label **/
 export const resetLabel = (map) => {
-  lastFeatures = null;
-  if (hasLayer(map, INDICATOR_LABEL_ID)) {
-    removeLayer(map, INDICATOR_LABEL_ID);
+  if (map) {
+    lastFeaturesMap.delete(map);
+    if (hasLayer(map, INDICATOR_LABEL_ID)) {
+      removeLayer(map, INDICATOR_LABEL_ID);
+    }
   }
 };
 
@@ -56,10 +58,11 @@ export const renderLabel = (
   features,
   config
 ) => {
+  const lastFeatures = lastFeaturesMap.get(map);
   if (JSON.stringify(features) === JSON.stringify(lastFeatures)) {
     return;
   }
-  lastFeatures = features;
+  lastFeaturesMap.set(map, features);
 
   const { paint, layout, minZoom, maxZoom } = formatStyle(config, features);
   if (hasLayer(map, INDICATOR_LABEL_ID)) {

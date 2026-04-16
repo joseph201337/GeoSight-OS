@@ -23,18 +23,24 @@ import maplibregl from "maplibre-gl";
 import Chart from "chart.js/auto";
 import { popupTemplate } from "../../Popup";
 
-let charts = {};
-let markers = [];
-let chartLastConfig = [];
+let chartsMap = new WeakMap();
+let markersMap = new WeakMap();
+let chartLastConfigMap = new WeakMap();
 
 /** Resetting **/
-export const resetCharts = () => {
+export const resetCharts = (map) => {
+  if (!map) return;
+  const mapId = map.getContainer().id;
+  const charts = chartsMap.get(map) || {};
   for (const [code, chart] of Object.entries(charts)) {
     chart.clear();
-    $(`${code}-chart`).remove();
+    $(`#${code}-chart-${mapId}`).remove();
   }
+  const markers = markersMap.get(map) || [];
   markers.map((marker) => marker.remove());
-  markers = [];
+
+  chartsMap.set(map, {});
+  markersMap.set(map, []);
 };
 
 export const renderChart = (
@@ -45,15 +51,20 @@ export const renderChart = (
   transparency,
 ) => {
   if (!config.indicatorShow) {
-    resetCharts();
+    resetCharts(map);
     return;
   }
   if (JSON.stringify(config) === JSON.stringify(lastConfig)) {
     return;
   } else {
-    resetCharts();
+    resetCharts(map);
   }
-  chartLastConfig = config;
+  // Store current config for validation in async callbacks
+  chartLastConfigMap.set(map, config);
+
+  const mapId = map.getContainer().id;
+  const charts = chartsMap.get(map) || {};
+  const markers = markersMap.get(map) || [];
 
   /** Render charts to Map */
   features.map((feature) => {
@@ -65,7 +76,7 @@ export const renderChart = (
 
     if (charts[code]) {
       charts[code].clear();
-      $(`${code}-chart`).remove();
+      $(`#${code}-chart-${mapId}`).remove();
     }
 
     const popup = new maplibregl.Popup({
@@ -75,18 +86,20 @@ export const renderChart = (
     })
       .setLngLat(feature.geometry.coordinates)
       .setHTML(
-        `<div id="${code}-wrapper" class="centroid-chart" style="display: block; box-sizing: border-box; height: ${size}px; width: ${size}px; opacity: ${transparency}"><canvas id="${code}-chart" width="${size}" height="${size}" data-size="${size}"></div>`,
+        `<div id="${code}-wrapper-${mapId}" class="centroid-chart" style="display: block; box-sizing: border-box; height: ${size}px; width: ${size}px; opacity: ${transparency}"><canvas id="${code}-chart-${mapId}" width="${size}" height="${size}" data-size="${size}"></div>`,
       )
       .addTo(map);
     markers.push(popup);
+    markersMap.set(map, markers);
 
     // Create charts
     setTimeout(function () {
-      // Don't render if config is not same
-      if (JSON.stringify(config) !== JSON.stringify(chartLastConfig)) {
+      const currentConfig = chartLastConfigMap.get(map);
+      // Don't render if config has changed since we started
+      if (JSON.stringify(config) !== JSON.stringify(currentConfig)) {
         return;
       }
-      const el = document.getElementById(`${code}-chart`);
+      const el = document.getElementById(`${code}-chart-${mapId}`);
       if (!el) {
         return;
       }
@@ -111,6 +124,7 @@ export const renderChart = (
           options: options,
         });
         charts[code] = chart;
+        chartsMap.set(map, charts);
 
         // Popup for marker
         addPopupEl(
@@ -140,10 +154,10 @@ export const renderChart = (
           },
           {
             anchor: "bottom",
-            offset: [0, -1 * (size/2)],
+            offset: [0, -1 * (size / 2)],
           },
         );
-      } catch (err) {}
+      } catch (err) { }
     }, 200);
   });
 };
@@ -160,15 +174,21 @@ export const renderPin = (
   transparency,
 ) => {
   if (!config.indicatorShow) {
-    resetCharts();
+    resetCharts(map);
     return;
   }
   if (JSON.stringify(config) === JSON.stringify(lastConfig)) {
     return;
   } else {
-    resetCharts();
+    resetCharts(map);
   }
-  chartLastConfig = config;
+  // Store current config for validation in async callbacks
+  chartLastConfigMap.set(map, config);
+
+  const mapId = map.getContainer().id;
+  const charts = chartsMap.get(map) || {};
+  const markers = markersMap.get(map) || [];
+
   features.map((feature) => {
     const properties = feature.properties;
     const chartStyle = properties.chart_style;
@@ -177,7 +197,7 @@ export const renderPin = (
 
     if (charts[code]) {
       charts[code].clear();
-      $(`${code}-chart`).remove();
+      $(`#${code}-chart-${mapId}`).remove();
     }
     const children = [];
     indicatorLayer.indicators.map((indicator) => {
@@ -200,9 +220,10 @@ export const renderPin = (
     })
       .setLngLat(feature.geometry.coordinates)
       .setHTML(
-        `<div id="${code}-pin" class="pins centroid-chart" style="opacity: ${transparency}">${children.join("")}</div>`,
+        `<div id="${code}-pin-${mapId}" class="pins centroid-chart" style="opacity: ${transparency}">${children.join("")}</div>`,
       )
       .addTo(map);
     markers.push(popup);
+    markersMap.set(map, markers);
   });
 };

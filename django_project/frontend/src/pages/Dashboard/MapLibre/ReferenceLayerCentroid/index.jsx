@@ -74,17 +74,17 @@ export default function ReferenceLayerCentroid({ map, isSecondary = false }) {
     : selectedIndicatorLayer;
   const mapGeometryValue = isSecondary
     ? getIndicatorValueByGeometry(
-        activeIndicatorLayer,
-        indicators,
-        indicatorsData,
-        relatedTables,
-        relatedTableData,
-        selectedGlobalTime,
-        geoField,
-        null,
-        referenceLayer,
-        selectedAdminLevel?.level,
-      )
+      activeIndicatorLayer,
+      indicators,
+      indicatorsData,
+      relatedTables,
+      relatedTableData,
+      selectedGlobalTime,
+      geoField,
+      null,
+      referenceLayer,
+      selectedAdminLevel?.level,
+    )
     : storeMapGeometryValue;
 
   const [geometriesDataState, setGeometriesDataState] = useState({
@@ -179,7 +179,7 @@ export default function ReferenceLayerCentroid({ map, isSecondary = false }) {
   /** Resetting **/
   const reset = (map) => {
     resetLabel(map);
-    resetCharts();
+    resetCharts(map);
   };
 
   // When show label toggled
@@ -200,9 +200,6 @@ export default function ReferenceLayerCentroid({ map, isSecondary = false }) {
     let rendering = true;
     // Check if multiple indicator or not
     let indicatorLayer = activeIndicatorLayer;
-    if (!isSecondary && selectedIndicatorSecondLayer?.indicators?.length >= 2) {
-      indicatorLayer = selectedIndicatorSecondLayer;
-    }
     if (!indicatorLayer.indicators) {
       rendering = false;
     }
@@ -239,8 +236,11 @@ export default function ReferenceLayerCentroid({ map, isSecondary = false }) {
     // ---------------------------------------------------------
     // CREATE CHARTS IF MULTIPLE INDICATORS
     // ---------------------------------------------------------
-    const isRenderingChart = indicatorLayer?.indicators?.length >= 2;
-    if (isRenderingChart) {
+    // For secondary map, only render charts if there's an explicit selectedIndicatorSecondLayer
+    // to prevent both maps from rendering the same layer's charts
+    const hasExplicitSecondaryLayer = selectedIndicatorSecondLayer?.indicators?.length > 0;
+    const shouldRenderChart = indicatorLayer?.indicators?.length >= 2 && (!isSecondary || hasExplicitSecondaryLayer);
+    if (shouldRenderChart) {
       // Remove label when in chart
       resetLabel(map);
 
@@ -419,7 +419,7 @@ export default function ReferenceLayerCentroid({ map, isSecondary = false }) {
       // CREATE LABEL IF SINGLE INDICATOR
       // ---------------------------------------------------------
       // Remove charts when label
-      resetCharts();
+      resetCharts(map);
 
       // Hide label if indicator not show
       if (!indicatorShow) {
